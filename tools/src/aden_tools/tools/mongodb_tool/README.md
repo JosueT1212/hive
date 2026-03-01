@@ -51,7 +51,7 @@ Data must be passed as a valid JSON string. The tool automatically handles the c
 mongodb_insert_document(
     database="hive_production",
     collection="users",
-    document_json='{"name": "Josue", "role": "admin", "status": "active"}'
+    document_json='{"name": "Test user", "role": "admin", "status": "active"}'
 )
 
 ```
