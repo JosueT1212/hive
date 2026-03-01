@@ -61,7 +61,7 @@ bigquery = [
     "google-cloud-bigquery>=3.0.0",
 ]
 mongodb = [
-	"pymongo[srv]>=4.16.0",
+	"pymongo>=4.16.0",
 ]
               
 all = [
