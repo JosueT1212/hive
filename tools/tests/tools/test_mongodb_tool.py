@@ -126,3 +126,52 @@ def test_mongodb_missing_credentials(tools):
         assert "error" in result
         assert "MongoDB URI not configured" in result["error"]
 
+def test_mongodb_list_collections_success(tools):
+    tool_func = tools["mongodb_list_collections"]
+
+    with patch(PATCH_TARGET) as mock_mongo_class:
+        mock_db = MagicMock()
+        mock_db.list_collection_names.return_value = ["users", "orders"]
+        mock_mongo_class.return_value.__getitem__.return_value = mock_db
+
+        result = tool_func(database="test_db")
+
+        assert result["success"] is True
+        assert "users" in result["collections"]
+        assert "orders" in result["collections"]
+        mock_db.list_collection_names.assert_called_once()
+
+
+def test_mongodb_aggregate_success(tools):
+    tool_func = tools["mongodb_aggregate"]
+
+    with patch(PATCH_TARGET) as mock_mongo_class:
+        mock_collection = MagicMock()
+        mock_cursor = [{"_id": "analytics_id", "total": 150}]
+        mock_collection.aggregate.return_value = mock_cursor
+        mock_mongo_class.return_value.__getitem__.return_value.__getitem__.return_value = mock_collection
+
+        pipeline_json = '[{"$match": {"status": "A"}}, {"$group": {"_id": "$item", "total": {"$sum": "$amount"}}}]'
+        result = tool_func(database="test_db", collection="test_col", pipeline_json=pipeline_json)
+
+        assert result["success"] is True
+        assert result["count"] == 1
+        assert result["data"][0]["total"] == 150
+        
+        # Verify the pipeline was parsed from JSON to a Python list
+        expected_pipeline = [{"$match": {"status": "A"}}, {"$group": {"_id": "$item", "total": {"$sum": "$amount"}}}]
+        mock_collection.aggregate.assert_called_once_with(expected_pipeline)
+
+
+def test_mongodb_aggregate_invalid_json(tools):
+    tool_func = tools["mongodb_aggregate"]
+
+    # Test bad JSON
+    result_bad_json = tool_func(database="test_db", collection="test_col", pipeline_json="not a json array")
+    assert "error" in result_bad_json
+    assert "Invalid JSON format" in result_bad_json["error"]
+
+    # Test valid JSON but not a list/array
+    result_not_array = tool_func(database="test_db", collection="test_col", pipeline_json='{"$match": {"status": "A"}}')
+    assert "error" in result_not_array
+    assert "must be a JSON array" in result_not_array["error"]

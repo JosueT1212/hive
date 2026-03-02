@@ -92,6 +92,40 @@ class _MongoClient:
         except PyMongoError as e:
             return {"error": f"Database query error: {e}"}
 
+    def list_collections(self, database: str) -> dict[str, Any]:
+        """List all collections in a database."""
+        try:
+            db = self._client[database]
+            collections = db.list_collection_names()
+            return {
+                "success": True,
+                "collections": collections
+            }
+        except PyMongoError as e:
+            return {"error": f"Database list collections error: {e}"}
+
+    def aggregate_documents(
+        self, 
+        database: str, 
+        collection: str, 
+        pipeline: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Run an aggregation pipeline."""
+        try:
+            db = self._client[database]
+            col = db[collection]
+            cursor = col.aggregate(pipeline)
+            
+            documents = [self._serialize_doc(doc) for doc in cursor]
+            
+            return {
+                "success": True,
+                "count": len(documents),
+                "data": documents
+            }
+        except PyMongoError as e:
+            return {"error": f"Database aggregation error: {e}"}
+
 
 def register_tools(
     mcp: FastMCP,
@@ -209,4 +243,59 @@ def register_tools(
             collection=collection, 
             query=query, 
             limit=limit
+        )
+
+    @mcp.tool()
+    def mongodb_list_collections(database: str) -> dict[str, Any]:
+        """
+        List all collections available in a specific MongoDB database.
+
+        Use this to explore the database structure and see what data is available.
+
+        Args:
+            database: Target database name.
+
+        Returns:
+            Dict containing the list of collection names, or error dict on failure.
+        """
+        client = _get_client()
+        if isinstance(client, dict):
+            return client
+
+        return client.list_collections(database=database)
+
+    @mcp.tool()
+    def mongodb_aggregate(
+        database: str,
+        collection: str,
+        pipeline_json: str,
+    ) -> dict[str, Any]:
+        """
+        Run a complex aggregation pipeline on a MongoDB collection.
+
+        Use this for analytics, filtering, grouping, and transforming data.
+
+        Args:
+            database: Target database name.
+            collection: Target collection name.
+            pipeline_json: JSON string representing the aggregation pipeline (array of stages).
+
+        Returns:
+            Dict containing the result count and data array, or error dict on failure.
+        """
+        client = _get_client()
+        if isinstance(client, dict):
+            return client
+
+        try:
+            pipeline = json.loads(pipeline_json)
+            if not isinstance(pipeline, list):
+                return {"error": "Pipeline must be a JSON array of aggregation stages."}
+        except json.JSONDecodeError:
+            return {"error": "Invalid JSON format provided in pipeline_json."}
+
+        return client.aggregate_documents(
+            database=database, 
+            collection=collection, 
+            pipeline=pipeline
         )
